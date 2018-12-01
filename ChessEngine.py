@@ -1,5 +1,10 @@
 import chess
 
+import numpy as np
+
+# —————————————————————————————————————————————————————————————————
+# In charge of the artificial intelligence of the ai
+# —————————————————————————————————————————————————————————————————
 class ChessEngine():
 
     def __init__(self):
@@ -8,6 +13,8 @@ class ChessEngine():
 
     def PrintBoard(self):
         piece_map = self.board.piece_map()
+        print("a b c d e f g h")
+        print("———————————————")
         for row in range(self.board_size):
             for col in range(self.board_size):
 
@@ -19,27 +26,28 @@ class ChessEngine():
                     print(str(piece_map[piece_index]) + ' ', end='')
                 else:
                     print(u"\u25A1 ", end='')
-            # Print a newline
-            print("")
+            print("|", row + 1 , " ")
         print("")
 
-    def Move(self, move):
-        self.board.push(move)
-
     def GetMove(self, depth):
+
         alpha = float('-inf')
         beta = float('inf')
+        best_value = float('-inf')
         best_move = None
-
         # Find the best move
         for move in self.board.legal_moves:
             self.board.push(move)
             # The best move is based on future moves of the player and enemy
-            score = - self.Negamax(depth - 1, -alpha, -beta)
-            if score > alpha:
-                alpha = score
-                best_move = move
+            score = - self.Negamax(depth - 1, -beta, -alpha)
             self.board.pop()
+
+            if score > best_value:
+                best_value = score
+                best_move = move
+                if score > alpha:
+                    alpha = score
+        print(best_value, self.Evaluate())
         return best_move
 
     # Algorithm based on pseudocode from https://www.chessprogramming.org/Alpha-Beta
@@ -48,23 +56,52 @@ class ChessEngine():
     def Negamax(self, depth, alpha, beta):
         # Reach the end of the tree
         if depth == 0:
-            return self.Evaluate()
+            return self.QuiescenceSearch(alpha, beta)
 
         best_value = float('-inf')
         # Find the best move
         for move in self.board.legal_moves:
             self.board.push(move)
             # The best move is based on future moves of the player and enemy
-            score = - self.Negamax(depth - 1, -alpha, -beta)
+            score = - self.Negamax(depth - 1, -beta, -alpha)
+            self.board.pop()
             if score >= beta:
-                self.board.pop()
                 return score
 
             if score > best_value:
                 best_value = score
                 if score > alpha:
                     alpha = score
-            self.board.pop()
+        return alpha
+
+    # Evaluates the final move to see if it is a 'quiet' move, which
+    # prevents the algorithm from choosing moves stupidly because it dosesn't
+    # take into account the next move. It helps avoid the 'horizon effect'
+    # Further reading: https://www.chessprogramming.org/Quiescence_Search
+    # Pseudo code based on chessprogramming.org
+    def QuiescenceSearch(self, alpha, beta):
+
+        # Initial evaluation when there are no captures
+        initial = self.Evaluate();
+
+        if initial >= beta:
+            return beta
+
+        if alpha < initial:
+            alpha = initial
+
+        for move in self.board.legal_moves:
+            if self.board.is_capture(move):
+                self.board.push(move)
+                score = -self.QuiescenceSearch(-beta, -alpha)
+                self.board.pop()
+
+                if score >= beta:
+                    return beta
+                
+                if score > alpha:
+                    alpha = score
+
         return alpha
 
     def Evaluate(self):
@@ -90,10 +127,51 @@ class ChessEngine():
         # Negate the score if it is black's turn
         return total_value if self.board.turn else -total_value
 
-chess_engine = ChessEngine()
-chess_engine.PrintBoard()
+    def PrintMoves(self):
+        for move in self.board.legal_moves:
+            print(" From:", chess.SQUARE_NAMES[move.from_square], " To:", chess.SQUARE_NAMES[move.to_square])
 
-# Test chess playing: (right now it's really stupid)
-for i in range(50):
-    chess_engine.Move(chess_engine.GetMove(5))
-    chess_engine.PrintBoard()
+# —————————————————————————————————————————————————————————————————
+# Manages the chess game
+# —————————————————————————————————————————————————————————————————
+class ChessManager():
+
+    def __init__(self):
+        self.chess_engine = ChessEngine()
+        self.square_dict = {chess.SQUARE_NAMES[i]: i for i in range(64)}
+
+    # Get a random availible move
+    def GetRandomMove(self):
+        if self.chess_engine.board.legal_moves.count() == 0:
+            return None
+        else:
+            return np.random.choice(list(self.chess_engine.board.legal_moves))
+
+    # Get input from the player to move
+    def GetPlayerMove(self):
+        move = None
+        while(not move in self.chess_engine.board.legal_moves):
+            print("Enter from square:")
+            from_square = str(input())
+            print("Enter to square:")
+            to_square = str(input())
+            if from_square in self.square_dict and to_square in self.square_dict:
+                move = chess.Move(self.square_dict[from_square], self.square_dict[to_square])
+
+        return move
+
+    # Push the move onto the board
+    def Move(self, move):
+        self.chess_engine.board.push(move)
+
+    # Plays the game
+    def StartGame(self):
+        for i in range(20):
+            #self.chess_engine.PrintMoves()
+            self.chess_engine.PrintBoard()
+            self.Move(self.GetRandomMove())
+            self.chess_engine.PrintBoard()
+            self.Move(self.chess_engine.GetMove(4))
+
+chess_manager = ChessManager()
+chess_manager.StartGame()
