@@ -16,14 +16,17 @@ class ChessAgent():
         timeout = time.time() + time_limit
         depth = 1 # Start out with a depth of 1
         best_move = None
+        ordered_moves = [move for move in self.board.legal_moves] # Initially, we don't have ordered moves
 
         while(True):
             alpha = float('-inf')
             beta = float('inf')
             best_value_depth = float('-inf')
-            best_move_depth = None
+            best_move_depth = None if len(ordered_moves) == 0 else ordered_moves[0]
+            move_scores = [] # Helps to order the moves from best to worst
+
             # Find the best move
-            for move in self.board.legal_moves:
+            for move in ordered_moves:
 
                 # Timeout: return the best value of the last depth iteration
                 if(time.time() > timeout):
@@ -31,8 +34,10 @@ class ChessAgent():
                     return best_move
 
                 self.board.push(move)
+                
                 # The best move is based on future moves of the player and enemy
                 score = - self.Negamax(depth - 1, -beta, -alpha)
+                move_scores.append((move, score))
                 self.board.pop()
 
                 if score > best_value_depth:
@@ -40,6 +45,9 @@ class ChessAgent():
                     best_move_depth = move
                     if score > alpha:
                         alpha = score
+
+            # For the next deepening, sort the moves based on the best in this deepening in order to make the alpha beta algorithm process faster
+            ordered_moves = [move for (move, score) in sorted(move_scores, reverse=True, key=lambda x: x[1])]
 
             # The search at this depth completed: update the value
             best_move = best_move_depth
@@ -57,9 +65,12 @@ class ChessAgent():
         # Find the best move
         for move in self.board.legal_moves:
             self.board.push(move)
+
             # The best move is based on future moves of the player and enemy
             score = - self.Negamax(depth - 1, -beta, -alpha)
+
             self.board.pop()
+
             if score >= beta:
                 return score
 
@@ -183,18 +194,18 @@ class ChessManager():
     # Converts a piece to the unicode character to make it look nice
     def PieceToUnicode(self, piece):
         piece_to_unicode = {
-            "P": u"\u2659",
-            "N": u"\u2658",
-            "B": u"\u2657",
-            "R": u"\u2656",
-            "Q": u"\u2655",
-            "K": u"\u2654",
-            "p": u"\u265f",
-            "n": u"\u265e",
-            "b": u"\u265d",
-            "r": u"\u265c",
-            "q": u"\u265b",
-            "k": u"\u265a"
+            "p": u"\u2659",
+            "n": u"\u2658",
+            "b": u"\u2657",
+            "r": u"\u2656",
+            "q": u"\u2655",
+            "k": u"\u2654",
+            "P": u"\u265f",
+            "N": u"\u265e",
+            "B": u"\u265d",
+            "R": u"\u265c",
+            "Q": u"\u265b",
+            "K": u"\u265a"
         }
         return piece_to_unicode.get(piece.symbol(), "ERROR")
 
@@ -208,13 +219,18 @@ class ChessManager():
     # Get input from the player to move
     def GetPlayerMove(self):
         move = None
+        if self.board.legal_moves.count() == 0: # You lost!
+            return move
+
         while(not move in self.board.legal_moves):
-            print("Enter from square:")
+            print("Enter the 'from' square:")
             from_square = str(input())
-            print("Enter to square:")
+            print("Enter the 'to' square:")
             to_square = str(input())
             if from_square in self.square_dict and to_square in self.square_dict:
                 move = chess.Move(self.square_dict[from_square], self.square_dict[to_square])
+            if not move in self.board.legal_moves:
+                print("That was not a valid move! make sure you are entering a valid square, for example : g4")
 
         return move
 
@@ -222,10 +238,10 @@ class ChessManager():
     def Move(self, move):
         if move == None:
             if self.board.turn:
-                print("Black Wins!")
-            else:
                 print("White Wins!")
-            game_end = True
+            else:
+                print("Black Wins!")
+            self.game_end = True
         else:
             self.board.push(move)
 
@@ -233,7 +249,8 @@ class ChessManager():
     def StartGame(self):
         chess_agent = ChessAgent(self.board)
         while(not self.game_end):
-            #self.chess_engine.PrintMoves()
+            self.PrintBoard()
+            self.Move(self.GetPlayerMove())
             self.PrintBoard()
             self.Move(chess_agent.GetMove(3))
 
